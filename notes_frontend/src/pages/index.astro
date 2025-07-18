@@ -1,11 +1,94 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
 ---
 
 <Layout>
-	<Welcome />
+  <div id="app"></div>
+  <script type="module">
+    import Sidebar from '../components/Sidebar.astro';
+    import Header from '../components/Header.astro';
+    import NoteListEmpty from '../components/NoteListEmpty.astro';
+    import NoteEditor from '../components/NoteEditor.astro';
+    import * as notesApi from '../notes';
+
+    let notes = [];
+    let filteredNotes = [];
+    let selectedId = null;
+    let search = "";
+
+    function refreshNotes(selectId) {
+      notes = notesApi.getAllNotes();
+      filteredNotes = search.length > 0 ? notesApi.searchNotes(search) : notes;
+      if (!filteredNotes.find((n) => n.id === selectedId)) {
+        selectedId = filteredNotes[0]?.id ?? null;
+      }
+      if (selectId) {
+        selectedId = selectId;
+      }
+      render();
+    }
+
+    function handleNewNote() {
+      const newNote = notesApi.createNote("Untitled", "");
+      refreshNotes(newNote.id);
+    }
+    function handleSelectNote(id) {
+      selectedId = id;
+      render();
+    }
+    function handleSaveNote(edited) {
+      if (edited.id && notesApi.getNoteById(edited.id)) {
+        notesApi.updateNote(edited.id, { title: edited.title, content: edited.content });
+      } else {
+        notesApi.createNote(edited.title, edited.content);
+      }
+      refreshNotes(edited.id);
+    }
+    function handleDeleteNote(id) {
+      notesApi.deleteNote(id);
+      refreshNotes();
+    }
+    function handleSearch(kw) {
+      search = kw;
+      refreshNotes();
+    }
+
+    function render() {
+      const app = document.getElementById('app');
+      // Compose Sidebar
+      const sidebar = Sidebar({
+        notes: filteredNotes,
+        selectedId,
+        setSelectedId: handleSelectNote,
+        onNewNote: handleNewNote,
+        onSearch: handleSearch
+      });
+      // Compose Header
+      const header = Header();
+      // Compose Note Editor or Empty
+      const noteSection = selectedId
+        ? NoteEditor({
+            note: notesApi.getNoteById(selectedId),
+            onSave: handleSaveNote,
+            onDelete: handleDeleteNote
+          })
+        : NoteListEmpty();
+
+      app.innerHTML = `
+        <div style="display: flex; height: 100vh; width: 100vw; background: var(--bg-color);">
+          <aside style="flex-shrink:0;">${sidebar.outerHTML}</aside>
+          <main class="main" style="flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg-color);">
+            ${header.outerHTML}
+            <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;">
+              ${noteSection.outerHTML}
+            </section>
+          </main>
+        </div>
+      `;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      refreshNotes();
+    });
+  </script>
 </Layout>
