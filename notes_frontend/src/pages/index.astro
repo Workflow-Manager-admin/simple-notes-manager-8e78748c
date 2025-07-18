@@ -111,8 +111,24 @@ import NoteEditor from '../components/NoteEditor.astro';
     }
 
     function handleDeleteNote(id) {
+      // Determine next selection before deleting
+      const ns = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+      const idx = ns.findIndex((n) => n.id === id);
+
       deleteNote(id);
-      refreshNotes();
+
+      let nextId = null;
+      // Try selecting the previous note, otherwise the next one, otherwise nothing
+      if (ns.length > 1 && idx !== -1) {
+        if (idx > 0) {
+          nextId = ns[idx - 1].id;
+        } else {
+          // idx == 0, so maybe select new first note
+          const notesAfterDelete = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+          if (notesAfterDelete.length > 0) nextId = notesAfterDelete[0].id;
+        }
+      }
+      refreshNotes(nextId);
     }
 
     function handleSearch(kw) {
