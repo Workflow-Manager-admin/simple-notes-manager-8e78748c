@@ -8,32 +8,14 @@ import NoteEditor from '../components/NoteEditor.astro';
 
 <Layout>
   <div id="notes-app-root" style="display: flex; height: 100vh; width: 100vw; background: var(--bg-color);">
-    <aside id="sidebar-container" style="flex-shrink:0;">
-      <Sidebar
-        notes={[]}
-        selectedId={null}
-        setSelectedId={() => {}}
-        onNewNote={() => {}}
-        onSearch={() => {}}
-      />
-    </aside>
+    <aside id="sidebar-container" style="flex-shrink:0;"></aside>
     <main class="main" style="flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg-color);">
       <Header />
-      <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;" id="note-section">
-        <NoteListEmpty />
-      </section>
+      <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;" id="note-section"></section>
     </main>
   </div>
   <script type="module">
-    import Sidebar from '../components/Sidebar.astro';
-    import Header from '../components/Header.astro';
-    import NoteListEmpty from '../components/NoteListEmpty.astro';
-    import NoteEditor from '../components/NoteEditor.astro';
-    import * as notesApi from '../notes';
-
-    // Because Astro components can't be rendered on the client, move all UI rendering below to vanilla JS.
-    // This is a vanilla JS client hydration approach using direct DOM for rapid demo.
-
+    // UI in vanilla JS for client interactivity
     let notes = [];
     let filteredNotes = [];
     let selectedId = null;
@@ -48,8 +30,8 @@ import NoteEditor from '../components/NoteEditor.astro';
       }
     }
 
-    function saveNotes(notes) {
-      window.localStorage.setItem("astro-notes", JSON.stringify(notes));
+    function saveNotes(notesArr) {
+      window.localStorage.setItem("astro-notes", JSON.stringify(notesArr));
     }
 
     function createNote(title = "Untitled", content = "") {
@@ -57,31 +39,31 @@ import NoteEditor from '../components/NoteEditor.astro';
         id: crypto.randomUUID(),
         title,
         content,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      const notes = getAllNotes();
-      notes.push(note);
-      saveNotes(notes);
+      const ns = getAllNotes();
+      ns.push(note);
+      saveNotes(ns);
       return note;
     }
 
     function updateNote(id, fields) {
-      const notes = getAllNotes();
-      const index = notes.findIndex((n) => n.id === id);
-      if (index === -1) return null;
-      notes[index] = {
-        ...notes[index],
+      const ns = getAllNotes();
+      const idx = ns.findIndex((n) => n.id === id);
+      if (idx === -1) return null;
+      ns[idx] = {
+        ...ns[idx],
         ...fields,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
-      saveNotes(notes);
-      return notes[index];
+      saveNotes(ns);
+      return ns[idx];
     }
 
     function deleteNote(id) {
-      let notes = getAllNotes();
-      notes = notes.filter((n) => n.id !== id);
-      saveNotes(notes);
+      let ns = getAllNotes();
+      ns = ns.filter((n) => n.id !== id);
+      saveNotes(ns);
     }
 
     function getNoteById(id) {
@@ -97,14 +79,13 @@ import NoteEditor from '../components/NoteEditor.astro';
       );
     }
 
-    function refreshNotes(selectId) {
+    function refreshNotes(selectId = null) {
       notes = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
       filteredNotes = search.length > 0 ? searchNotes(search) : notes;
-      if (!filteredNotes.find((n) => n.id === selectedId)) {
-        selectedId = filteredNotes[0]?.id ?? null;
-      }
       if (selectId) {
         selectedId = selectId;
+      } else if (!filteredNotes.find((n) => n.id === selectedId)) {
+        selectedId = filteredNotes[0]?.id ?? null;
       }
       render();
     }
@@ -113,28 +94,32 @@ import NoteEditor from '../components/NoteEditor.astro';
       const newNote = createNote("Untitled", "");
       refreshNotes(newNote.id);
     }
+
     function handleSelectNote(id) {
       selectedId = id;
       render();
     }
+
     function handleSaveNote(edited) {
       if (edited.id && getNoteById(edited.id)) {
         updateNote(edited.id, { title: edited.title, content: edited.content });
       } else {
-        createNote(edited.title, edited.content);
+        const note = createNote(edited.title, edited.content);
+        selectedId = note.id;
       }
-      refreshNotes(edited.id);
+      refreshNotes(selectedId);
     }
+
     function handleDeleteNote(id) {
       deleteNote(id);
       refreshNotes();
     }
+
     function handleSearch(kw) {
       search = kw;
       refreshNotes();
     }
 
-    // --- Plain DOM-based rendering since Astro components are not usable here ---
     function renderSidebar() {
       const sidebarContainer = document.getElementById("sidebar-container");
       sidebarContainer.innerHTML = "";
@@ -200,7 +185,8 @@ import NoteEditor from '../components/NoteEditor.astro';
         // Empty state
         const div = document.createElement("div");
         div.className = "empty-main";
-        div.innerHTML = '<p><span aria-hidden="true" style="font-size:2.2em;">📝</span><br>Start by <b>creating a new note</b> or select one in the sidebar.</p>';
+        div.innerHTML =
+          '<p><span aria-hidden="true" style="font-size:2.2em;">📝</span><br>Start by <b>creating a new note</b> or select one in the sidebar.</p>';
         section.appendChild(div);
         return;
       }
@@ -235,7 +221,13 @@ import NoteEditor from '../components/NoteEditor.astro';
       const saveBtn = document.createElement("button");
       saveBtn.className = "primary";
       saveBtn.textContent = "Save";
-      saveBtn.onclick = () => handleSaveNote({ ...note, title: input.value, content: textarea.value, id: note.id });
+      saveBtn.onclick = () =>
+        handleSaveNote({
+          ...note,
+          title: input.value,
+          content: textarea.value,
+          id: note.id,
+        });
       actions.appendChild(saveBtn);
       if (note.id) {
         const delBtn = document.createElement("button");
