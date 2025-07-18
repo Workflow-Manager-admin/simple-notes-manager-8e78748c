@@ -1,9 +1,29 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Header from '../components/Header.astro';
+import NoteListEmpty from '../components/NoteListEmpty.astro';
+import NoteEditor from '../components/NoteEditor.astro';
 ---
 
 <Layout>
-  <div id="app"></div>
+  <div id="notes-app-root" style="display: flex; height: 100vh; width: 100vw; background: var(--bg-color);">
+    <aside id="sidebar-container" style="flex-shrink:0;">
+      <Sidebar
+        notes={[]}
+        selectedId={null}
+        setSelectedId={() => {}}
+        onNewNote={() => {}}
+        onSearch={() => {}}
+      />
+    </aside>
+    <main class="main" style="flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg-color);">
+      <Header />
+      <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;" id="note-section">
+        <NoteListEmpty />
+      </section>
+    </main>
+  </div>
   <script type="module">
     import Sidebar from '../components/Sidebar.astro';
     import Header from '../components/Header.astro';
@@ -11,14 +31,75 @@ import Layout from '../layouts/Layout.astro';
     import NoteEditor from '../components/NoteEditor.astro';
     import * as notesApi from '../notes';
 
+    // Because Astro components can't be rendered on the client, move all UI rendering below to vanilla JS.
+    // This is a vanilla JS client hydration approach using direct DOM for rapid demo.
+
     let notes = [];
     let filteredNotes = [];
     let selectedId = null;
     let search = "";
 
+    function getAllNotes() {
+      const notesRaw = window.localStorage.getItem("astro-notes");
+      try {
+        return notesRaw ? JSON.parse(notesRaw) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveNotes(notes) {
+      window.localStorage.setItem("astro-notes", JSON.stringify(notes));
+    }
+
+    function createNote(title = "Untitled", content = "") {
+      const note = {
+        id: crypto.randomUUID(),
+        title,
+        content,
+        updatedAt: Date.now()
+      };
+      const notes = getAllNotes();
+      notes.push(note);
+      saveNotes(notes);
+      return note;
+    }
+
+    function updateNote(id, fields) {
+      const notes = getAllNotes();
+      const index = notes.findIndex((n) => n.id === id);
+      if (index === -1) return null;
+      notes[index] = {
+        ...notes[index],
+        ...fields,
+        updatedAt: Date.now()
+      };
+      saveNotes(notes);
+      return notes[index];
+    }
+
+    function deleteNote(id) {
+      let notes = getAllNotes();
+      notes = notes.filter((n) => n.id !== id);
+      saveNotes(notes);
+    }
+
+    function getNoteById(id) {
+      return getAllNotes().find((n) => n.id === id);
+    }
+
+    function searchNotes(keyword) {
+      const word = keyword.toLowerCase();
+      return getAllNotes().filter(
+        (n) =>
+          n.title.toLowerCase().includes(word) ||
+          n.content.toLowerCase().includes(word)
+      );
+    }
+
     function refreshNotes(selectId) {
-      notes = notesApi.getAllNotes();
-      filteredNotes = search.length > 0 ? notesApi.searchNotes(search) : notes;
+      notes = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+      filteredNotes = search.length > 0 ? searchNotes(search) : notes;
       if (!filteredNotes.find((n) => n.id === selectedId)) {
         selectedId = filteredNotes[0]?.id ?? null;
       }
@@ -29,7 +110,7 @@ import Layout from '../layouts/Layout.astro';
     }
 
     function handleNewNote() {
-      const newNote = notesApi.createNote("Untitled", "");
+      const newNote = createNote("Untitled", "");
       refreshNotes(newNote.id);
     }
     function handleSelectNote(id) {
@@ -37,15 +118,15 @@ import Layout from '../layouts/Layout.astro';
       render();
     }
     function handleSaveNote(edited) {
-      if (edited.id && notesApi.getNoteById(edited.id)) {
-        notesApi.updateNote(edited.id, { title: edited.title, content: edited.content });
+      if (edited.id && getNoteById(edited.id)) {
+        updateNote(edited.id, { title: edited.title, content: edited.content });
       } else {
-        notesApi.createNote(edited.title, edited.content);
+        createNote(edited.title, edited.content);
       }
       refreshNotes(edited.id);
     }
     function handleDeleteNote(id) {
-      notesApi.deleteNote(id);
+      deleteNote(id);
       refreshNotes();
     }
     function handleSearch(kw) {
@@ -53,41 +134,128 @@ import Layout from '../layouts/Layout.astro';
       refreshNotes();
     }
 
-    function render() {
-      const app = document.getElementById('app');
-      // Compose Sidebar
-      const sidebar = Sidebar({
-        notes: filteredNotes,
-        selectedId,
-        setSelectedId: handleSelectNote,
-        onNewNote: handleNewNote,
-        onSearch: handleSearch
-      });
-      // Compose Header
-      const header = Header();
-      // Compose Note Editor or Empty
-      const noteSection = selectedId
-        ? NoteEditor({
-            note: notesApi.getNoteById(selectedId),
-            onSave: handleSaveNote,
-            onDelete: handleDeleteNote
-          })
-        : NoteListEmpty();
+    // --- Plain DOM-based rendering since Astro components are not usable here ---
+    function renderSidebar() {
+      const sidebarContainer = document.getElementById("sidebar-container");
+      sidebarContainer.innerHTML = "";
+      const side = document.createElement("aside");
+      side.className = "sidebar";
+      side.style = "height:100vh;";
 
-      app.innerHTML = `
-        <div style="display: flex; height: 100vh; width: 100vw; background: var(--bg-color);">
-          <aside style="flex-shrink:0;">${sidebar.outerHTML}</aside>
-          <main class="main" style="flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg-color);">
-            ${header.outerHTML}
-            <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;">
-              ${noteSection.outerHTML}
-            </section>
-          </main>
-        </div>
-      `;
+      // Header
+      const header = document.createElement("header");
+      const title = document.createElement("h2");
+      title.textContent = "Notes";
+      const newBtn = document.createElement("button");
+      newBtn.className = "new-btn";
+      newBtn.textContent = "＋";
+      newBtn.title = "New Note";
+      newBtn.onclick = handleNewNote;
+      header.append(title, newBtn);
+      side.append(header);
+
+      // Search
+      const searchBox = document.createElement("div");
+      searchBox.className = "search-box";
+      const searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.placeholder = "Search notes…";
+      searchInput.value = search;
+      searchInput.oninput = (e) => handleSearch(e.target.value);
+      searchInput.ariaLabel = "Search notes";
+      searchBox.appendChild(searchInput);
+      side.appendChild(searchBox);
+
+      // Notes List
+      const nav = document.createElement("nav");
+      const ul = document.createElement("ul");
+      if (filteredNotes.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "No notes yet";
+        ul.appendChild(li);
+      } else {
+        filteredNotes.forEach((note) => {
+          const li = document.createElement("li");
+          if (selectedId === note.id) li.className = "selected";
+          li.onclick = () => handleSelectNote(note.id);
+          const span = document.createElement("span");
+          span.textContent = note.title || "(Untitled)";
+          const small = document.createElement("small");
+          small.textContent = new Date(note.updatedAt).toLocaleDateString();
+          li.append(span, small);
+          ul.appendChild(li);
+        });
+      }
+      nav.appendChild(ul);
+      side.appendChild(nav);
+
+      sidebarContainer.appendChild(side);
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
+    function renderNoteSection() {
+      const section = document.getElementById("note-section");
+      section.innerHTML = "";
+      if (!selectedId) {
+        // Empty state
+        const div = document.createElement("div");
+        div.className = "empty-main";
+        div.innerHTML = '<p><span aria-hidden="true" style="font-size:2.2em;">📝</span><br>Start by <b>creating a new note</b> or select one in the sidebar.</p>';
+        section.appendChild(div);
+        return;
+      }
+      const note = getNoteById(selectedId);
+      if (!note) return;
+      const editor = document.createElement("div");
+      editor.className = "editor";
+
+      // Title input
+      const input = document.createElement("input");
+      input.className = "title";
+      input.type = "text";
+      input.placeholder = "Title";
+      input.value = note.title;
+      input.spellcheck = true;
+      input.maxLength = 120;
+      input.required = true;
+      editor.appendChild(input);
+
+      // Content textarea
+      const textarea = document.createElement("textarea");
+      textarea.className = "body";
+      textarea.placeholder = "Write your note here…";
+      textarea.value = note.content;
+      textarea.rows = 12;
+      textarea.spellcheck = true;
+      editor.appendChild(textarea);
+
+      // Buttons
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "primary";
+      saveBtn.textContent = "Save";
+      saveBtn.onclick = () => handleSaveNote({ ...note, title: input.value, content: textarea.value, id: note.id });
+      actions.appendChild(saveBtn);
+      if (note.id) {
+        const delBtn = document.createElement("button");
+        delBtn.className = "danger";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = () => {
+          if (window.confirm("Delete this note?")) handleDeleteNote(note.id);
+        };
+        actions.appendChild(delBtn);
+      }
+      editor.appendChild(actions);
+      section.appendChild(editor);
+    }
+
+    function render() {
+      renderSidebar();
+      renderNoteSection();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
       refreshNotes();
     });
   </script>
