@@ -1,0 +1,114 @@
+---
+const { note, onSave, onDelete } = Astro.props;
+const isNew = !note.id;
+let draftTitle = note.title ?? "";
+let draftContent = note.content ?? "";
+
+function handleTitle(e: Event) {
+  draftTitle = (e.target as HTMLInputElement).value;
+}
+function handleContent(e: Event) {
+  draftContent = (e.target as HTMLTextAreaElement).value;
+}
+function saveNote() {
+  onSave({ ...note, title: draftTitle, content: draftContent });
+}
+function deleteNote() {
+  if (window.confirm("Delete this note?")) onDelete(note.id);
+}
+---
+
+<div class="editor">
+  <input
+    class="title"
+    type="text"
+    placeholder="Title"
+    value={draftTitle}
+    oninput={handleTitle}
+    spellcheck="true"
+    maxlength="120"
+    required
+  />
+  <textarea
+    class="body"
+    placeholder="Write your note here…"
+    value={draftContent}
+    rows="12"
+    oninput={handleContent}
+    spellcheck="true"
+  ></textarea>
+  <div class="actions">
+    <button class="primary" onclick={saveNote}>Save</button>
+    {!isNew && (
+      <button class="danger" onclick={deleteNote}>Delete</button>
+    )}
+  </div>
+</div>
+<style>
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1em;
+  max-width: 700px;
+  margin: 1.8em auto 0;
+  font-family: inherit;
+}
+.editor .title {
+  font-size: 1.35em;
+  font-weight: 500;
+  border: none;
+  border-bottom: 2px solid #F59E42;
+  background: transparent;
+  outline: none;
+  width: 100%;
+  padding: 0.3em 0 0.55em .1em;
+  margin-bottom: 8px;
+  color: #232328;
+  transition: border-color 0.13s;
+}
+.editor .title:focus { border-bottom:2px solid #4F46E5;}
+.editor .body {
+  resize: vertical;
+  width: 100%;
+  min-height: 8em;
+  font-size: 1.03em;
+  border-radius: 7px;
+  padding: 0.8em 1.1em;
+  border: 1.3px solid var(--border-color);
+  color: #22262D;
+  line-height: 1.6;
+  outline: none;
+  font-family: inherit;
+  background: #fcfcfe;
+}
+.editor .actions {
+  display: flex;
+  gap: 0.6em;
+  margin-top: 8px;
+}
+.editor button.primary {
+  background: #4F46E5;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: .65em 2.1em;
+  font-size: 1.07em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.19s;
+}
+.editor button.primary:hover { background: #322db1; }
+.editor button.danger {
+  background: #F59E42;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: .65em 1.1em;
+  font-size: 0.99em;
+  font-weight: 500;
+  cursor: pointer;
+  margin-left: 0.2em;
+  transition: background 0.17s;
+}
+.editor button.danger:hover { background: #c57216; }
+</style>

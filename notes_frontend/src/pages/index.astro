@@ -1,0 +1,270 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Sidebar from '../components/Sidebar.astro';
+import Header from '../components/Header.astro';
+import NoteListEmpty from '../components/NoteListEmpty.astro';
+import NoteEditor from '../components/NoteEditor.astro';
+---
+
+<Layout>
+  <div id="notes-app-root" style="display: flex; height: 100vh; width: 100vw; background: var(--bg-color);">
+    <aside id="sidebar-container" style="flex-shrink:0;"></aside>
+    <main class="main" style="flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; min-width: 0; background: var(--bg-color);">
+      <Header />
+      <section class="note-section" style="flex:1 1 auto; overflow-y:auto; padding-top:2em;" id="note-section"></section>
+    </main>
+  </div>
+  <script type="module">
+    // UI in vanilla JS for client interactivity
+    let notes = [];
+    let filteredNotes = [];
+    let selectedId = null;
+    let search = "";
+
+    function getAllNotes() {
+      const notesRaw = window.localStorage.getItem("astro-notes");
+      try {
+        return notesRaw ? JSON.parse(notesRaw) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveNotes(notesArr) {
+      window.localStorage.setItem("astro-notes", JSON.stringify(notesArr));
+    }
+
+    function createNote(title = "Untitled", content = "") {
+      const note = {
+        id: crypto.randomUUID(),
+        title,
+        content,
+        updatedAt: Date.now(),
+      };
+      const ns = getAllNotes();
+      ns.push(note);
+      saveNotes(ns);
+      return note;
+    }
+
+    function updateNote(id, fields) {
+      const ns = getAllNotes();
+      const idx = ns.findIndex((n) => n.id === id);
+      if (idx === -1) return null;
+      ns[idx] = {
+        ...ns[idx],
+        ...fields,
+        updatedAt: Date.now(),
+      };
+      saveNotes(ns);
+      return ns[idx];
+    }
+
+    function deleteNote(id) {
+      let ns = getAllNotes();
+      ns = ns.filter((n) => n.id !== id);
+      saveNotes(ns);
+    }
+
+    function getNoteById(id) {
+      return getAllNotes().find((n) => n.id === id);
+    }
+
+    function searchNotes(keyword) {
+      const word = keyword.toLowerCase();
+      return getAllNotes().filter(
+        (n) =>
+          n.title.toLowerCase().includes(word) ||
+          n.content.toLowerCase().includes(word)
+      );
+    }
+
+    function refreshNotes(selectId = null) {
+      notes = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+      filteredNotes = search.length > 0 ? searchNotes(search) : notes;
+      if (selectId) {
+        selectedId = selectId;
+      } else if (!filteredNotes.find((n) => n.id === selectedId)) {
+        selectedId = filteredNotes[0]?.id ?? null;
+      }
+      render();
+    }
+
+    function handleNewNote() {
+      const newNote = createNote("Untitled", "");
+      refreshNotes(newNote.id);
+    }
+
+    function handleSelectNote(id) {
+      selectedId = id;
+      render();
+    }
+
+    function handleSaveNote(edited) {
+      if (edited.id && getNoteById(edited.id)) {
+        updateNote(edited.id, { title: edited.title, content: edited.content });
+      } else {
+        const note = createNote(edited.title, edited.content);
+        selectedId = note.id;
+      }
+      refreshNotes(selectedId);
+    }
+
+    function handleDeleteNote(id) {
+      // Determine next selection before deleting
+      const ns = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+      const idx = ns.findIndex((n) => n.id === id);
+
+      deleteNote(id);
+
+      let nextId = null;
+      // Try selecting the previous note, otherwise the next one, otherwise nothing
+      if (ns.length > 1 && idx !== -1) {
+        if (idx > 0) {
+          nextId = ns[idx - 1].id;
+        } else {
+          // idx == 0, so maybe select new first note
+          const notesAfterDelete = getAllNotes().sort((a, b) => b.updatedAt - a.updatedAt);
+          if (notesAfterDelete.length > 0) nextId = notesAfterDelete[0].id;
+        }
+      }
+      refreshNotes(nextId);
+    }
+
+    function handleSearch(kw) {
+      search = kw;
+      refreshNotes();
+    }
+
+    function renderSidebar() {
+      const sidebarContainer = document.getElementById("sidebar-container");
+      sidebarContainer.innerHTML = "";
+      const side = document.createElement("aside");
+      side.className = "sidebar";
+      side.style = "height:100vh;";
+
+      // Header
+      const header = document.createElement("header");
+      const title = document.createElement("h2");
+      title.textContent = "Notes";
+      const newBtn = document.createElement("button");
+      newBtn.className = "new-btn";
+      newBtn.textContent = "＋";
+      newBtn.title = "New Note";
+      newBtn.onclick = handleNewNote;
+      header.append(title, newBtn);
+      side.append(header);
+
+      // Search
+      const searchBox = document.createElement("div");
+      searchBox.className = "search-box";
+      const searchInput = document.createElement("input");
+      searchInput.type = "search";
+      searchInput.placeholder = "Search notes…";
+      searchInput.value = search;
+      searchInput.oninput = (e) => handleSearch(e.target.value);
+      searchInput.ariaLabel = "Search notes";
+      searchBox.appendChild(searchInput);
+      side.appendChild(searchBox);
+
+      // Notes List
+      const nav = document.createElement("nav");
+      const ul = document.createElement("ul");
+      if (filteredNotes.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty";
+        li.textContent = "No notes yet";
+        ul.appendChild(li);
+      } else {
+        filteredNotes.forEach((note) => {
+          const li = document.createElement("li");
+          if (selectedId === note.id) li.className = "selected";
+          li.onclick = () => handleSelectNote(note.id);
+          const span = document.createElement("span");
+          span.textContent = note.title || "(Untitled)";
+          const small = document.createElement("small");
+          small.textContent = new Date(note.updatedAt).toLocaleDateString();
+          li.append(span, small);
+          ul.appendChild(li);
+        });
+      }
+      nav.appendChild(ul);
+      side.appendChild(nav);
+
+      sidebarContainer.appendChild(side);
+    }
+
+    function renderNoteSection() {
+      const section = document.getElementById("note-section");
+      section.innerHTML = "";
+      if (!selectedId) {
+        // Empty state
+        const div = document.createElement("div");
+        div.className = "empty-main";
+        div.innerHTML =
+          '<p><span aria-hidden="true" style="font-size:2.2em;">📝</span><br>Start by <b>creating a new note</b> or select one in the sidebar.</p>';
+        section.appendChild(div);
+        return;
+      }
+      const note = getNoteById(selectedId);
+      if (!note) return;
+      const editor = document.createElement("div");
+      editor.className = "editor";
+
+      // Title input
+      const input = document.createElement("input");
+      input.className = "title";
+      input.type = "text";
+      input.placeholder = "Title";
+      input.value = note.title;
+      input.spellcheck = true;
+      input.maxLength = 120;
+      input.required = true;
+      editor.appendChild(input);
+
+      // Content textarea
+      const textarea = document.createElement("textarea");
+      textarea.className = "body";
+      textarea.placeholder = "Write your note here…";
+      textarea.value = note.content;
+      textarea.rows = 12;
+      textarea.spellcheck = true;
+      editor.appendChild(textarea);
+
+      // Buttons
+      const actions = document.createElement("div");
+      actions.className = "actions";
+      const saveBtn = document.createElement("button");
+      saveBtn.className = "primary";
+      saveBtn.textContent = "Save";
+      saveBtn.onclick = () =>
+        handleSaveNote({
+          ...note,
+          title: input.value,
+          content: textarea.value,
+          id: note.id,
+        });
+      actions.appendChild(saveBtn);
+      if (note.id) {
+        const delBtn = document.createElement("button");
+        delBtn.className = "danger";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = () => {
+          if (window.confirm("Delete this note?")) handleDeleteNote(note.id);
+        };
+        actions.appendChild(delBtn);
+      }
+      editor.appendChild(actions);
+      section.appendChild(editor);
+    }
+
+    function render() {
+      renderSidebar();
+      renderNoteSection();
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      refreshNotes();
+    });
+  </script>
+</Layout>

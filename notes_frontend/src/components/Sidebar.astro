@@ -1,0 +1,118 @@
+---
+const { selectedId, setSelectedId, notes, onNewNote, onSearch } = Astro.props;
+---
+<aside class="sidebar">
+  <header>
+    <h2>Notes</h2>
+    <button class="new-btn" onclick={onNewNote} title="New Note">＋</button>
+  </header>
+  <div class="search-box">
+    <input
+      type="search"
+      placeholder="Search notes…"
+      oninput={(e) => onSearch(e.target.value)}
+      aria-label="Search notes"
+    />
+  </div>
+  <nav>
+    <ul>
+      {notes.length === 0 && <li class="empty">No notes yet</li>}
+      {notes.map((note) => (
+        <li
+          class={selectedId === note.id ? "selected" : ""}
+          onclick={() => setSelectedId(note.id)}
+        >
+          <span>{note.title || "(Untitled)"}</span>
+          <small>{new Date(note.updatedAt).toLocaleDateString()}</small>
+        </li>
+      ))}
+    </ul>
+  </nav>
+</aside>
+<style>
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  background: var(--card-bg);
+  border-right: 1px solid var(--border-color);
+  min-width: 225px;
+  max-width: 270px;
+  width: 25vw;
+  height: 100vh;
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+  font-family: Inter, Arial, sans-serif;
+}
+.sidebar header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 0 .5rem 0.2rem;
+  border-bottom: 1px solid var(--border-color);
+}
+.sidebar h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-family: inherit;
+  color: #4F46E5;
+}
+.new-btn {
+  background: #F59E42;
+  border: none;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  color: #fff;
+  font-weight: bold;
+  font-size: 1.3rem;
+  cursor: pointer;
+  transition: box-shadow .2s, background .2s;
+}
+.new-btn:hover { background: #ee840d; }
+.search-box {
+  padding: 0.8rem 0.1rem;
+}
+.search-box input {
+  width: 95%;
+  padding: 0.5em .8em;
+  font-size: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: #f8fafc;
+}
+nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-height: 2em;
+}
+nav li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0.65em 0.7em;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  transition: background 0.12s;
+}
+nav li.selected {
+  background: #E9E3FC;
+  color: #4F46E5;
+  font-weight: bold;
+}
+nav li:hover:not(.selected) { background: #f6f6fb; }
+nav li small {
+  color: #64748B;
+  font-size: 0.75em;
+  margin-top: -3px;
+}
+nav li.empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  padding-top: 1.5em;
+}
+@media (max-width: 800px) {
+  .sidebar { min-width: 140px; max-width: none; width: 33vw;}
+}
+</style>
